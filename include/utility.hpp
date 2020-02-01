@@ -19,6 +19,9 @@ namespace elf {
     using usize = u_int32_t;
 #endif
 
+    template<typename T, typename U>
+    T *dyn_cast(U *self);
+
     class MappedIOVisitor {
     private:
         void *inner;

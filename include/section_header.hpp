@@ -6,19 +6,64 @@ namespace elf {
     class ELF32SectionHeader {
     public:
         enum SectionHeaderType : u32 {
-            Null = 0,           /// Marks an unused section header
-            ProgramBits = 1,    /// Contains information defined by the program
-            SymbolTable = 2,    /// Contains a linker symbol table
-            StringTable = 3,    /// Contains a string table
-            Rela = 4,           /// Contains “Rela” type relocation entries
-            Hash = 5,           /// Contains a symbol hash table
-            Dynamic = 6,        /// Contains dynamic linking tables
-            Note = 7,           /// Contains note information
-            NoBits = 8,         /// Contains uninitialized space; does not occupy any space in the file
-            Rel = 9,            /// Contains “Rel” type relocation entries
-            Shlib = 10,         /// Reserved
-            DynamicSymbol = 11, /// Contains a dynamic loader symbol table
+            Null = 0,                       /// Marks an unused section header
+            ProgramBits = 1,                /// Contains information defined by the program
+            SymbolTable = 2,                /// Contains a linker symbol table
+            StringTable = 3,                /// Contains a string table
+            RelocationEntriesAddend = 4,    /// Contains “Rela” type relocation entries
+            HashTable = 5,                  /// Contains a symbol hash table
+            DynamicLinkingTable = 6,        /// Contains dynamic linking tables
+            Note = 7,                       /// Contains note information
+            NoBits = 8,                     /// Contains uninitialized space; does not occupy any space in the file
+            RelocationEntries = 9,          /// Contains “Rel” type relocation entries
+            SharedLibrary = 10,             /// Reserved
+            DynamicSymbol = 11,             /// Contains a dynamic loader symbol table
         };
+
+        friend std::ostream &operator<<(std::ostream &stream, SectionHeaderType self) {
+            switch (self) {
+                case Null:
+                    stream << "Null";
+                    break;
+                case ProgramBits:
+                    stream << "ProgramBits";
+                    break;
+                case SymbolTable:
+                    stream << "SymbolTable";
+                    break;
+                case StringTable:
+                    stream << "StringTable";
+                    break;
+                case RelocationEntriesAddend:
+                    stream << "RelocationEntriesAddend";
+                    break;
+                case HashTable:
+                    stream << "HashTable";
+                    break;
+                case DynamicLinkingTable:
+                    stream << "DynamicLinkingTable";
+                    break;
+                case Note:
+                    stream << "Note";
+                    break;
+                case NoBits:
+                    stream << "NoBits";
+                    break;
+                case RelocationEntries:
+                    stream << "RelocationEntries";
+                    break;
+                case SharedLibrary:
+                    stream << "SharedLibrary";
+                    break;
+                case DynamicSymbol:
+                    stream << "DynamicSymbol";
+                    break;
+                default:
+                    stream << '[' << static_cast<size_t>(self) << ']';
+            }
+
+            return stream;
+        }
 
         ///	contains the offset, in bytes, to the section name, relative to the start of the section
         /// name string table.
@@ -64,6 +109,36 @@ namespace elf {
             return stream;
         }
     };
+
+    class ELF32StringTableSectionHeader : public ELF32SectionHeader {
+    public:
+        template<typename VisitorT>
+        class ELF32StringTable {
+        private:
+            ELF32StringTableSectionHeader &header;
+            VisitorT &visitor;
+
+        public:
+            ELF32StringTable(ELF32StringTableSectionHeader &header, VisitorT &visitor) :
+                    header{header}, visitor{visitor} {}
+
+            char *get_str(size_t index) const {
+                return reinterpret_cast<char *>(visitor.address(header.offset + index));
+            }
+        };
+
+        template<typename VisitorT>
+        ELF32StringTable<VisitorT> get_string_table(VisitorT &visitor) {
+            return ELF32StringTable{*this, visitor};
+        }
+    };
+
+    template<>
+    ELF32StringTableSectionHeader *
+    dyn_cast<ELF32StringTableSectionHeader, ELF32SectionHeader>(ELF32SectionHeader *self) {
+        return self->section_type == ELF32SectionHeader::StringTable ?
+               reinterpret_cast<ELF32StringTableSectionHeader *>(self) : nullptr;
+    }
 }
 
 
