@@ -261,7 +261,10 @@ namespace elf {
             return stream;
         }
 
-        static constexpr char MAGIC[] = {'\x7f', 'E', 'L', 'F'};
+        static constexpr char MAGIC_0 = '\x7f';
+        static constexpr char MAGIC_1 = 'E';
+        static constexpr char MAGIC_2 = 'L';
+        static constexpr char MAGIC_3 = 'F';
 
         /// contain a “magic number,” identifying the file as an ELF object file. They contain the
         /// characters ‘\x7f’, ‘E’, ‘L’, and ‘F’, respectively.
@@ -354,12 +357,12 @@ namespace elf {
 
         template<typename VisitorT>
         ProgramIterable<VisitorT> programs(VisitorT &visitor) {
-            return ProgramIterable{*this, visitor};
+            return ProgramIterable<VisitorT>{*this, visitor};
         }
 
         template<typename VisitorT>
         SectionIterable<VisitorT> sections(VisitorT &visitor) {
-            return SectionIterable{*this, visitor};
+            return SectionIterable<VisitorT>{*this, visitor};
         }
     };
 
@@ -367,10 +370,10 @@ namespace elf {
     ELF32Header *dyn_cast<ELF32Header, void>(void *_self) {
         ELF32Header *self = reinterpret_cast<ELF32Header *>(_self);
 
-        if (self->magic_number[0] == ELF32Header::MAGIC[0] &&
-            self->magic_number[1] == ELF32Header::MAGIC[1] &&
-            self->magic_number[2] == ELF32Header::MAGIC[2] &&
-            self->magic_number[3] == ELF32Header::MAGIC[3])
+        if (self->magic_number[0] == ELF32Header::MAGIC_0 &&
+            self->magic_number[1] == ELF32Header::MAGIC_1 &&
+            self->magic_number[2] == ELF32Header::MAGIC_2 &&
+            self->magic_number[3] == ELF32Header::MAGIC_3)
             return self;
         else
             return nullptr;

@@ -129,7 +129,7 @@ namespace elf {
 
         template<typename VisitorT>
         ELF32StringTable<VisitorT> get_string_table(VisitorT &visitor) {
-            return ELF32StringTable{*this, visitor};
+            return ELF32StringTable<VisitorT>{*this, visitor};
         }
     };
 
