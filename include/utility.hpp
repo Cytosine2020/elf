@@ -61,6 +61,39 @@ namespace elf {
             return check_address(offset, len) ? trusted_address(offset) : nullptr;
         }
     };
+
+    template<typename T>
+    class ArrayIterator {
+    private:
+        size_t size;
+        void *inner;
+
+    public:
+        explicit ArrayIterator(T *inner, size_t size)
+                : size{size}, inner{inner} {}
+
+        bool operator!=(const ArrayIterator &other) const { return inner != other.inner; }
+
+        ArrayIterator operator++() {
+            inner = static_cast<u8 *>(inner) + size;
+            return *this;
+        }
+
+        ArrayIterator operator++(int) {
+            ArrayIterator ret = *this;
+            inner = static_cast<u8 *>(inner) + size;
+            return ret;
+        }
+
+        T &operator*() const { return *reinterpret_cast<T *>(inner); }
+
+        T *operator->() const { return reinterpret_cast<T *>(inner); }
+
+        T &operator[](size_t index) const {
+            u8 *ptr = static_cast<u8 *>(inner) + size * index;
+            return *reinterpret_cast<T *>(ptr);
+        }
+    };
 }
 
 

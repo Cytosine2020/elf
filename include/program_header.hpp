@@ -3,7 +3,11 @@
 
 
 namespace elf {
-    class ELF32ProgramHeader {
+    template <typename USizeT>
+    class ProgramHeader;
+
+    template <>
+    class ProgramHeader<u32> {
     public:
         enum ProgramHeaderType {
             Null = 0,
@@ -74,7 +78,7 @@ namespace elf {
         /// `address` should equal `offset`, modulo `alignment`.
         u32 alignment;
 
-        friend std::ostream &operator<<(std::ostream &stream, const ELF32ProgramHeader &self) {
+        friend std::ostream &operator<<(std::ostream &stream, const ProgramHeader &self) {
             stream << "ELF32ProgramHeader {\n";
             stream << "\ttype: " << self.type << ",\n";
             stream << "\toffset: " << self.offset << ",\n";
@@ -89,6 +93,8 @@ namespace elf {
             return stream;
         }
     };
+
+    using ELF32ProgramHeader = ProgramHeader<u32>;
 }
 
 
