@@ -3,6 +3,30 @@
 
 
 namespace elf {
+    void _warn(const char *file, int line, const char *msg) {
+        std::cerr << "Warn at file " << file << ", line " << line << ": " << msg << std::endl;
+    }
+
+#define elf_warn(msg) elf::_warn(__FILE__, __LINE__, msg)
+
+    __attribute__((noreturn)) void _abort(const char *file, int line, const char *msg) {
+        std::cerr << "Abort at file " << file << ", line " << line << ": " << msg << std::endl;
+
+        abort();
+    }
+
+#define elf_abort(msg) elf::_abort(__FILE__, __LINE__, msg)
+
+    __attribute__((noreturn)) void _unreachable(const char *file, int line, const char *msg) {
+        std::cerr << "Unreachable at file " << file << ", line " << line << ": " << msg << std::endl;
+
+        abort();
+    }
+
+#define elf_unreachable(msg) elf::_unreachable(__FILE__, __LINE__, msg)
+
+#define elf_unused __attribute__((unused))
+
     using i8 = int8_t;
     using u8 = u_int8_t;
     using i16 = int16_t;
@@ -19,17 +43,23 @@ namespace elf {
     using usize = u_int32_t;
 #endif
 
-    template<typename T, typename U>
-    T *dyn_cast(U *self);
-
-    class MappedIOVisitor {
+    class MappedFileVisitor {
     private:
         void *inner;
+        size_t size;
 
     public:
-        explicit MappedIOVisitor(void *inner) : inner{inner} {}
+        explicit MappedFileVisitor(void *inner, size_t size) : inner{inner}, size{size} {}
 
-        void *address(u32 offset) const { return static_cast<u8 *>(inner) + offset; }
+        bool check_address(u32 offset, size_t len) const {
+            return len <= size && offset <= size - len;
+        }
+
+        void *trusted_address(u32 offset) const { return static_cast<u8 *>(inner) + offset; }
+
+        void *address(u32 offset, size_t len) const {
+            return check_address(offset, len) ? trusted_address(offset) : nullptr;
+        }
     };
 }
 

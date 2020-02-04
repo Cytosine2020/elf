@@ -12,14 +12,56 @@
 namespace elf {
     class ELF32Header {
     public:
-        class SectionIterator {
+        class ProgramIterator {
         private:
-            const size_t size;
+            size_t size;
             void *inner;
 
         public:
-            explicit SectionIterator(size_t size, ELF32SectionHeader *inner) :
-                    size{size}, inner{inner} {}
+            explicit ProgramIterator(size_t size, ELF32ProgramHeader *inner)
+                    : size{size}, inner{inner} {}
+
+            bool operator!=(const ProgramIterator &other) const { return inner != other.inner; }
+
+            ProgramIterator operator++() {
+                inner = static_cast<u8 *>(inner) + size;
+                return *this;
+            }
+
+            const ELF32ProgramHeader &operator*() const {
+                return *reinterpret_cast<ELF32ProgramHeader *>(inner);
+            }
+        };
+
+        class ProgramIterable {
+        private:
+            ELF32Header &header;
+            MappedFileVisitor &visitor;
+
+        public:
+            explicit ProgramIterable(ELF32Header &header, MappedFileVisitor &visitor) :
+                    header{header}, visitor{visitor} {}
+
+            ProgramIterator begin() const {
+                void *ptr = visitor.trusted_address(header.program_header_offset);
+                return ProgramIterator{header.program_header_size, reinterpret_cast<ELF32ProgramHeader *>(ptr)};
+            }
+
+            ProgramIterator end() const {
+                void *ptr = visitor.trusted_address(header.program_header_offset +
+                                                    header.program_header_num * header.program_header_size);
+                return ProgramIterator{header.program_header_size, reinterpret_cast<ELF32ProgramHeader *>(ptr)};
+            }
+        };
+
+        class SectionIterator {
+        private:
+            void *inner;
+            const size_t size;
+
+        public:
+            explicit SectionIterator(ELF32SectionHeader *inner, size_t size) :
+                    inner{inner}, size{size} {}
 
             bool operator!=(const SectionIterator &other) const { return inner != other.inner; }
 
@@ -48,73 +90,33 @@ namespace elf {
             }
         };
 
-        template<typename VisitorT>
         class SectionIterable {
         private:
             ELF32Header &header;
-            VisitorT &visitor;
+            MappedFileVisitor &visitor;
 
         public:
-            explicit SectionIterable(ELF32Header &header, VisitorT &visitor) :
+            explicit SectionIterable(ELF32Header &header, MappedFileVisitor &visitor) :
                     header{header}, visitor{visitor} {}
 
             SectionIterator begin() const {
-                void *ptr = visitor.address(header.section_header_offset);
-                return SectionIterator{header.section_header_size, reinterpret_cast<ELF32SectionHeader *>(ptr)};
+                void *ptr = visitor.trusted_address(header.section_header_offset);
+                return SectionIterator{reinterpret_cast<ELF32SectionHeader *>(ptr), header.section_header_size};
             }
 
             SectionIterator end() const {
-                void *ptr = visitor.address(header.section_header_offset +
-                                            header.section_header_num * header.section_header_size);
-                return SectionIterator{header.section_header_size, reinterpret_cast<ELF32SectionHeader *>(ptr)};
+                void *ptr = visitor.trusted_address(
+                        header.section_header_offset + header.section_header_num * header.section_header_size);
+                return SectionIterator{reinterpret_cast<ELF32SectionHeader *>(ptr), header.section_header_size};
             }
 
             ELF32SectionHeader &operator[](size_t index) const {
+                if (index >= header.section_header_num) elf_abort("index out of boundary!");
+
                 return begin()[index];
             }
-        };
 
-        class ProgramIterator {
-        private:
-            size_t size;
-            void *inner;
-
-        public:
-            explicit ProgramIterator(size_t size, ELF32ProgramHeader *inner)
-                    : size{size}, inner{inner} {}
-
-            bool operator!=(const ProgramIterator &other) const { return inner != other.inner; }
-
-            ProgramIterator operator++() {
-                inner = static_cast<u8 *>(inner) + size;
-                return *this;
-            }
-
-            const ELF32ProgramHeader &operator*() const {
-                return *reinterpret_cast<ELF32ProgramHeader *>(inner);
-            }
-        };
-
-        template<typename VisitorT>
-        class ProgramIterable {
-        private:
-            ELF32Header &header;
-            VisitorT &visitor;
-
-        public:
-            explicit ProgramIterable(ELF32Header &header, VisitorT &visitor) :
-                    header{header}, visitor{visitor} {}
-
-            ProgramIterator begin() const {
-                void *ptr = visitor.address(header.program_header_offset);
-                return ProgramIterator{header.program_header_size, reinterpret_cast<ELF32ProgramHeader *>(ptr)};
-            }
-
-            ProgramIterator end() const {
-                void *ptr = visitor.address(header.program_header_offset +
-                                            header.program_header_num * header.program_header_size);
-                return ProgramIterator{header.program_header_size, reinterpret_cast<ELF32ProgramHeader *>(ptr)};
-            }
+            size_t length() const { return header.section_header_num; }
         };
 
         enum ELFClass : u8 {
@@ -266,6 +268,35 @@ namespace elf {
         static constexpr char MAGIC_2 = 'L';
         static constexpr char MAGIC_3 = 'F';
 
+        static ELF32Header *read(MappedFileVisitor &visitor) {
+            ELF32Header *header = reinterpret_cast<ELF32Header *>(visitor.address(0, sizeof(ELF32Header)));
+            if (header == nullptr) return nullptr;
+
+            // check magic number
+            if (header->magic_number[0] != ELF32Header::MAGIC_0 ||
+                header->magic_number[1] != ELF32Header::MAGIC_1 ||
+                header->magic_number[2] != ELF32Header::MAGIC_2 ||
+                header->magic_number[3] != ELF32Header::MAGIC_3)
+                return nullptr;
+
+            // check program header size and location in file
+            if (header->program_header_size < sizeof(ELF32ProgramHeader)) return nullptr;
+            if (!visitor.check_address(header->program_header_offset,
+                                       header->program_header_num * header->program_header_size))
+                return nullptr;
+
+            // check section header size and location in file
+            if (header->section_header_size < sizeof(ELF32SectionHeader)) return nullptr;
+            if (!visitor.check_address(header->section_header_offset,
+                                       header->section_header_num * header->section_header_size))
+                return nullptr;
+
+            // check string table index
+            if (header->string_table_index > header->section_header_num) return nullptr;
+
+            return header;
+        }
+
         /// contain a “magic number,” identifying the file as an ELF object file. They contain the
         /// characters ‘\x7f’, ‘E’, ‘L’, and ‘F’, respectively.
         char magic_number[4];
@@ -355,29 +386,10 @@ namespace elf {
             return stream;
         }
 
-        template<typename VisitorT>
-        ProgramIterable<VisitorT> programs(VisitorT &visitor) {
-            return ProgramIterable<VisitorT>{*this, visitor};
-        }
+        ProgramIterable programs(MappedFileVisitor &visitor) { return ProgramIterable{*this, visitor}; }
 
-        template<typename VisitorT>
-        SectionIterable<VisitorT> sections(VisitorT &visitor) {
-            return SectionIterable<VisitorT>{*this, visitor};
-        }
+        SectionIterable sections(MappedFileVisitor &visitor) { return SectionIterable{*this, visitor}; }
     };
-
-    template<>
-    ELF32Header *dyn_cast<ELF32Header, void>(void *_self) {
-        ELF32Header *self = reinterpret_cast<ELF32Header *>(_self);
-
-        if (self->magic_number[0] == ELF32Header::MAGIC_0 &&
-            self->magic_number[1] == ELF32Header::MAGIC_1 &&
-            self->magic_number[2] == ELF32Header::MAGIC_2 &&
-            self->magic_number[3] == ELF32Header::MAGIC_3)
-            return self;
-        else
-            return nullptr;
-    }
 }
 
 

@@ -5,6 +5,14 @@
 namespace elf {
     class ELF32SectionHeader {
     public:
+        template <typename T>
+        static T *cast(ELF32SectionHeader *self, MappedFileVisitor &visitor) {
+            if (self->section_type != T::TYPE) return nullptr;
+            if (!visitor.check_address(self->offset, self->size)) return nullptr;
+
+            return reinterpret_cast<T *>(self);
+        }
+
         enum SectionHeaderType : u32 {
             Null = 0,                       /// Marks an unused section header
             ProgramBits = 1,                /// Contains information defined by the program
@@ -112,33 +120,29 @@ namespace elf {
 
     class ELF32StringTableSectionHeader : public ELF32SectionHeader {
     public:
-        template<typename VisitorT>
+        static constexpr u32 TYPE = StringTable;
+
         class ELF32StringTable {
         private:
             ELF32StringTableSectionHeader &header;
-            VisitorT &visitor;
+            MappedFileVisitor &visitor;
 
         public:
-            ELF32StringTable(ELF32StringTableSectionHeader &header, VisitorT &visitor) :
+            ELF32StringTable(ELF32StringTableSectionHeader &header, MappedFileVisitor &visitor) :
                     header{header}, visitor{visitor} {}
 
             char *get_str(size_t index) const {
-                return reinterpret_cast<char *>(visitor.address(header.offset + index));
+                if (index >= header.size) return nullptr;
+                char *str = reinterpret_cast<char *>(visitor.trusted_address(header.offset + index));
+                if (strnlen(str, header.size - index) == (header.size - index)) return nullptr;
+                return str;
             }
         };
 
-        template<typename VisitorT>
-        ELF32StringTable<VisitorT> get_string_table(VisitorT &visitor) {
-            return ELF32StringTable<VisitorT>{*this, visitor};
+        ELF32StringTable get_string_table(MappedFileVisitor &visitor) {
+            return ELF32StringTable{*this, visitor};
         }
     };
-
-    template<>
-    ELF32StringTableSectionHeader *
-    dyn_cast<ELF32StringTableSectionHeader, ELF32SectionHeader>(ELF32SectionHeader *self) {
-        return self->section_type == ELF32SectionHeader::StringTable ?
-               reinterpret_cast<ELF32StringTableSectionHeader *>(self) : nullptr;
-    }
 }
 
 
