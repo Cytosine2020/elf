@@ -10,7 +10,7 @@
 
 
 namespace elf {
-    template <typename USizeT>
+    template<typename USizeT>
     class ELFHeader {
     public:
         using SectionHeaderT = SectionHeader<USizeT>;
@@ -38,7 +38,7 @@ namespace elf {
                 return Iter{reinterpret_cast<ProgramHeaderT *>(ptr), header.program_header_size};
             }
 
-            ProgramHeaderT &operator[](size_t index) const {
+            ProgramHeaderT &operator[](usize index) const {
                 if (index >= header.program_header_num) elf_abort("index out of boundary!");
                 return begin()[index];
             }
@@ -66,155 +66,47 @@ namespace elf {
                 return Iter{reinterpret_cast<SectionHeaderT *>(ptr), header.section_header_size};
             }
 
-            SectionHeaderT &operator[](size_t index) const {
+            SectionHeaderT &operator[](usize index) const {
                 if (index >= header.section_header_num) elf_abort("index out of boundary!");
                 return begin()[index];
             }
         };
 
-        enum ELFClass : u8 {
-            Bits32 = 1,
-            Bits64 = 2,
-        };
+        elf_enum_display(ELFClass, u8, 2,
+                         ELF32, 1,
+                         ELF64, 2
+        );
 
-        friend std::ostream &operator<<(std::ostream &stream, ELFClass self) {
-            switch (self) {
-                case Bits32:
-                    stream << "Bits32";
-                    break;
-                case Bits64:
-                    stream << "Bits64";
-                    break;
-                default:
-                    stream << '[' << static_cast<size_t>(self) << ']';
-            }
+        elf_enum_display(DataEncoding, u8, 2,
+                         DATA_LITTLE_ENDIAN, 1,
+                         DATA_BIG_ENDIAN, 2
+        );
 
-            return stream;
-        }
+        elf_enum_display(OsAbi, u8, 3,
+                         SYSTEM_V, 0,
+                         HP_UX, 1,
+                         STAND_ALONE, 255
+        );
 
-        enum DataEncoding : u8 {
-            LittleEndian = 1,
-            BigEndian = 2,
-        };
+        elf_enum_display(ObjectFileType, u8, 5,
+                         OBJECT_NONE, 0,
+                         RELOCATABLE, 1,
+                         EXECUTABLE, 2,
+                         SHARED, 3,
+                         CORE, 4
+        );
 
-        friend std::ostream &operator<<(std::ostream &stream, DataEncoding self) {
-            switch (self) {
-                case LittleEndian:
-                    stream << "LittleEndian";
-                    break;
-                case BigEndian:
-                    stream << "BigEndian";
-                    break;
-                default:
-                    stream << '[' << static_cast<size_t>(self) << ']';
-            }
-
-            return stream;
-        }
-
-        enum OsAbi : u8 {
-            SystemV = 0,
-            HpUx = 1,
-            Standalone = 255,
-        };
-
-        friend std::ostream &operator<<(std::ostream &stream, OsAbi self) {
-            switch (self) {
-                case SystemV:
-                    stream << "SystemV";
-                    break;
-                case HpUx:
-                    stream << "HpUx";
-                    break;
-                case Standalone:
-                    stream << "Standalone";
-                    break;
-                default:
-                    stream << '[' << static_cast<size_t>(self) << ']';
-            }
-
-            return stream;
-        }
-
-        enum ObjectFileType : u8 {
-            ObjectNone = 0,
-            Relocatable = 1,
-            Executable = 2,
-            Shared = 3,
-            Core = 4,
-        };
-
-        friend std::ostream &operator<<(std::ostream &stream, ObjectFileType self) {
-            switch (self) {
-                case ObjectNone:
-                    stream << "None";
-                    break;
-                case Relocatable:
-                    stream << "Relocatable";
-                    break;
-                case Executable:
-                    stream << "Executable";
-                    break;
-                case Shared:
-                    stream << "Shared";
-                    break;
-                case Core:
-                    stream << "Core";
-                    break;
-                default:
-                    stream << '[' << static_cast<size_t>(self) << ']';
-            }
-
-            return stream;
-        }
-
-        enum MachineType : u16 {
-            MachineNone = 0,        /// No machine
-            SPARC = 2,              /// SPARC
-            Intel_80386 = 3,        /// Intel Architecture
-            Motorola_68000 = 4,     /// Motorola 68000
-            Motorola_88000 = 5,     /// Motorola 88000
-            Intel_80860 = 6,        /// Intel 80860
-            MIPS_RS3000_BE = 8,     /// MIPS RS3000 Big-Endian
-            MIPS_RS4000_BE = 10,    /// MIPS RS4000 Big-Endian
-            RISCV = 243,            /// RISCV
-        };
-
-        friend std::ostream &operator<<(std::ostream &stream, MachineType self) {
-            switch (self) {
-                case MachineNone:
-                    stream << "None";
-                    break;
-                case SPARC:
-                    stream << "SPARC";
-                    break;
-                case Intel_80386:
-                    stream << "Intel_80386";
-                    break;
-                case Motorola_68000:
-                    stream << "Motorola_68000";
-                    break;
-                case Motorola_88000:
-                    stream << "Motorola_88000";
-                    break;
-                case Intel_80860:
-                    stream << "Intel_80860";
-                    break;
-                case MIPS_RS3000_BE:
-                    stream << "MIPS_RS3000_BE";
-                    break;
-                case MIPS_RS4000_BE:
-                    stream << "MIPS_RS4000_BE";
-                    break;
-                case RISCV:
-                    stream << "RISCV";
-                    break;
-                default:
-                    stream << '[' << static_cast<size_t>(self) << ']';
-            }
-
-            return stream;
-        }
+        elf_enum_display(MachineType, u16, 9,
+                         MACHINE_NONE, 0,       /// No machine
+                         SPARC, 2,              /// SPARC
+                         INTEL_80386, 3,        /// Intel Architecture
+                         MOTORORA_68000, 4,     /// Motorola 68000
+                         MOTORORA_88000, 5,     /// Motorola 88000
+                         INTEL_80860, 6,        /// Intel 80860
+                         MIPS_RS3000_BE, 8,     /// MIPS RS3000 Big-Endian
+                         MIPS_RS4000_BE, 10,    /// MIPS RS4000 Big-Endian
+                         RISCV, 243             /// RISCV
+        );
 
         static constexpr char MAGIC_0 = '\x7f';
         static constexpr char MAGIC_1 = 'E';
@@ -232,7 +124,9 @@ namespace elf {
                 header->magic_number[3] != ELFHeader::MAGIC_3)
                 return nullptr;
 
-            // check program header size and location in file
+            if (header->elf_header_size < sizeof(ELFHeader)) return nullptr;
+
+            // check program header size and location in filex
             if (header->program_header_size < sizeof(ProgramHeaderT)) return nullptr;
             if (!visitor.check_address(header->program_header_offset,
                                        header->program_header_num * header->program_header_size))

@@ -27,6 +27,21 @@ namespace elf {
 
 #define elf_unused __attribute__((unused))
 
+#include "recursive.def"
+
+#define elf_enum_display(Name, base_type, num, ...) \
+    enum Name : base_type { \
+        _elf_enum_display_attribute_helper_##num(__VA_ARGS__) \
+    }; \
+    friend std::ostream &operator<<(std::ostream &stream, Name self) { \
+        switch (self) { \
+            _elf_enum_display_display_helper_##num(__VA_ARGS__) \
+            default: \
+                stream << '[' << static_cast<base_type>(self) << ']'; \
+        } \
+        return stream; \
+    }
+
     using i8 = int8_t;
     using u8 = u_int8_t;
     using i16 = int16_t;
@@ -43,21 +58,61 @@ namespace elf {
     using usize = u_int32_t;
 #endif
 
+    template<typename T, usize end, usize begin>
+    struct bits_mask {
+    private:
+        using RetT = typename std::enable_if<(std::is_unsigned<T>::value && sizeof(T) * 8 >= end &&
+                                              end > begin), T>::type;
+
+    public:
+        static constexpr RetT val = ((static_cast<T>(1u) << end - begin) - static_cast<T>(1u)) << begin;
+    };
+
+    template<typename T, usize end, usize begin, isize offset = 0, bool flag = (begin > offset)>
+    struct _get_slice;
+
+    template<typename T, usize end, usize begin, isize offset>
+    struct _get_slice<T, end, begin, offset, true> {
+    public:
+        static constexpr T inner(T val) {
+            static_assert(sizeof(T) * 8 >= end, "end exceed length");
+            static_assert(end > begin, "end need to be bigger than start");
+            static_assert(sizeof(T) * 8 >= end - begin + offset, "result exceed length");
+
+            return (val >> (begin - offset)) & bits_mask<T, end - begin, 0>::val << offset;
+        }
+    };
+
+    template<typename T, usize end, usize begin, isize offset>
+    struct _get_slice<T, end, begin, offset, false> {
+    public:
+        static constexpr T inner(T val) {
+            static_assert(sizeof(T) * 8 >= end, "end exceed length");
+            static_assert(end > begin, "end need to be bigger than start");
+            static_assert(sizeof(T) * 8 >= end - begin + offset, "result exceed length");
+
+            return (val << (offset - begin)) & bits_mask<T, end - begin, 0>::val << offset;
+        }
+    };
+
+    template<typename T, usize end, usize begin, isize offset = 0>
+    constexpr inline T get_slice(T val) { return _get_slice<T, end, begin, offset>::inner(val); }
+
     class MappedFileVisitor {
     private:
         void *inner;
-        size_t size;
+        usize size;
 
     public:
-        explicit MappedFileVisitor(void *inner, size_t size) : inner{inner}, size{size} {}
+        explicit MappedFileVisitor(void *inner, usize size) : inner{inner}, size{size} {}
 
-        bool check_address(u32 offset, size_t len) const {
+        bool check_address(u32 offset, usize len) const {
             return len <= size && offset <= size - len;
         }
 
         void *trusted_address(u32 offset) const { return static_cast<u8 *>(inner) + offset; }
 
-        void *address(u32 offset, size_t len) const {
+        void *address(u32 offset, usize len) const {
             return check_address(offset, len) ? trusted_address(offset) : nullptr;
         }
     };
@@ -65,11 +120,11 @@ namespace elf {
     template<typename T>
     class ArrayIterator {
     private:
-        size_t size;
+        usize size;
         void *inner;
 
     public:
-        explicit ArrayIterator(T *inner, size_t size)
+        explicit ArrayIterator(T *inner, usize size)
                 : size{size}, inner{inner} {}
 
         bool operator!=(const ArrayIterator &other) const { return inner != other.inner; }
@@ -89,7 +144,7 @@ namespace elf {
 
         T *operator->() const { return reinterpret_cast<T *>(inner); }
 
-        T &operator[](size_t index) const {
+        T &operator[](usize index) const {
             u8 *ptr = static_cast<u8 *>(inner) + size * index;
             return *reinterpret_cast<T *>(ptr);
         }
