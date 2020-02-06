@@ -194,12 +194,12 @@ namespace elf {
             /// size: contains the size associated with the symbol. If a symbol does not have an associated size, or
             ///     the size is unknown, this field contains zero.
 
-            SymbolBinding get_bind() const { return static_cast<SymbolBinding>(get_slice<u8, 8, 4>(this->info)); }
+            SymbolBinding get_bind() const { return static_cast<SymbolBinding>(get_bits<u8, 8, 4>(this->info)); }
 
-            SymbolType get_type() const { return static_cast<SymbolType>(get_slice<u8, 4, 0>(this->info)); }
+            SymbolType get_type() const { return static_cast<SymbolType>(get_bits<u8, 4, 0>(this->info)); }
 
             SymbolVisibility get_visibility() const {
-                return static_cast<SymbolVisibility>(get_slice<u8, 2, 0>(this->other));
+                return static_cast<SymbolVisibility>(get_bits<u8, 2, 0>(this->other));
             }
         };
 

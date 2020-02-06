@@ -65,7 +65,7 @@ namespace elf {
                                               end > begin), T>::type;
 
     public:
-        static constexpr RetT val = ((static_cast<T>(1u) << end - begin) - static_cast<T>(1u)) << begin;
+        static constexpr RetT val = ((static_cast<T>(1u) << (end - begin)) - static_cast<T>(1u)) << begin;
     };
 
     template<typename T, usize end, usize begin, isize offset = 0, bool flag = (begin > offset)>
@@ -96,7 +96,7 @@ namespace elf {
     };
 
     template<typename T, usize end, usize begin, isize offset = 0>
-    constexpr inline T get_slice(T val) { return _get_slice<T, end, begin, offset>::inner(val); }
+    constexpr inline T get_slice(T val) { return _get_bits<T, end, begin, offset>::inner(val); }
 
     class MappedFileVisitor {
     private:
