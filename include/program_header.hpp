@@ -45,6 +45,18 @@ namespace elf {
                          PROGRAM_HEADER_TABLE, 6
         );
 
+        template<typename T>
+        static T *cast(ProgramHeader *self, MappedFileVisitor &visitor) {
+            if (self->type != T::TYPE) return nullptr;
+            if (!visitor.check_address(self->offset, self->file_size)) return nullptr;
+
+            return reinterpret_cast<T *>(self);
+        }
+
+        static constexpr USizeT EXECUTE = 1;
+        static constexpr USizeT WRITE = 2;
+        static constexpr USizeT READ = 4;
+
         /// type: This member tells what kind of segment this array element describes or how to
         /// interpret the array element's information. Type values and their meanings appear
         /// below.
@@ -60,8 +72,7 @@ namespace elf {
         ///
         /// file_size: This member gives the number of bytes in the file image of the segment; it may be zero.
         ///
-        /// mem_size: This member gives the number of bytes in the memory image of the segment; it may be
-        /// zero.
+        /// mem_size: This member gives the number of bytes in the memory image of the segment; it may be zero.
         ///
         /// flags: This member gives flags relevant to the segment. Defined flag values appear below.
         ///
@@ -72,6 +83,12 @@ namespace elf {
         /// `address` should equal `offset`, modulo `alignment`.
 
         ProgramHeaderType get_type() const { return static_cast<ProgramHeaderType>(this->type); }
+
+        bool is_execute() const { return (this->flags & EXECUTE) > 0; }
+
+        bool is_write() const { return (this->flags & WRITE) > 0; }
+
+        bool is_read() const { return (this->flags & READ) > 0; }
 
         friend std::ostream &operator<<(std::ostream &stream, const ProgramHeader &self) {
             stream << "ELF32ProgramHeader {\n";
@@ -91,6 +108,15 @@ namespace elf {
 
     using ELF32ProgramHeader = ProgramHeader<u32>;
     using ELF64ProgramHeader = ProgramHeader<u64>;
+
+    template<typename USizeT>
+    class ExecutableHeader : public ProgramHeader<USizeT> {
+    public:
+        static constexpr u32 TYPE = ProgramHeader<USizeT>::LOADABLE;
+    };
+
+    using ELF32ExecutableHeader = ExecutableHeader<u32>;
+    using ELF64ExecutableHeader = ExecutableHeader<u64>;
 }
 
 

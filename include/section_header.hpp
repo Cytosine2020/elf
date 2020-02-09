@@ -65,11 +65,11 @@ namespace elf {
         /// Otherwise, this field contains zero.
         USizeT entry_size;
 
-        bool is_write() const { return flags & WRITE; }
+        bool is_write() const { return (flags & WRITE) > 0; }
 
-        bool is_allocate() const { return flags & ALLOCATE; }
+        bool is_allocate() const { return (flags & ALLOCATE) > 0; }
 
-        bool is_executable() const { return flags & EXECUTABLE; }
+        bool is_executable() const { return (flags & EXECUTABLE) > 0; }
 
         friend std::ostream &operator<<(std::ostream &stream, const SectionHeader &self) {
             stream << "ELF32SectionHeader {\n";
