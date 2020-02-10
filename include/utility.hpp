@@ -2,6 +2,10 @@
 #define ELF_UTILITY_HPP
 
 
+#include <sys/mman.h>
+#include <sys/stat.h>
+
+
 namespace elf {
     void _warn(const char *file, int line, const char *msg) {
         std::cerr << "Warn at file " << file << ", line " << line << ": " << msg << std::endl;
@@ -100,21 +104,35 @@ namespace elf {
 
     class MappedFileVisitor {
     private:
+        int fd;
         void *inner;
         usize size;
 
     public:
-        explicit MappedFileVisitor(void *inner, usize size) : inner{inner}, size{size} {}
+        explicit MappedFileVisitor() : fd{-1}, inner{nullptr}, size{0} {}
 
-        bool check_address(u32 offset, usize len) const {
-            return len <= size && offset <= size - len;
+        bool load_file(int _fd) {
+            fd = _fd;
+
+            struct stat file_stat{};
+            if (fstat(fd, &file_stat) != 0) return false;
+            size = file_stat.st_size;
+
+            inner = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+            return inner != MAP_FAILED;
         }
+
+        bool check_address(u32 offset, usize len) const { return len <= size && offset <= size - len; }
 
         void *trusted_address(u32 offset) const { return static_cast<u8 *>(inner) + offset; }
 
         void *address(u32 offset, usize len) const {
             return check_address(offset, len) ? trusted_address(offset) : nullptr;
         }
+
+        int get_fd() { return fd; }
+
+        ~MappedFileVisitor() { munmap(inner, size); }
     };
 
     template<typename T>
