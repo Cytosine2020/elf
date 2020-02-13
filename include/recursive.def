@@ -1,3 +1,7 @@
+#ifndef ELF_RECURSIVE_DEF
+#define ELF_RECURSIVE_DEF
+
+
 #define _elf_enum_display_attribute_helper_1(a_0, v_0) a_0 = v_0,
 
 #define _elf_enum_display_attribute_helper_2(a_0, v_0, ...) \
@@ -764,3 +768,5 @@
 #define _elf_enum_display_display_helper_128(a_0, _, ...) \
     case a_0: stream << #a_0; break; _elf_enum_display_display_helper_127(__VA_ARGS__)
 
+
+#endif //ELF_RECURSIVE_DEF
