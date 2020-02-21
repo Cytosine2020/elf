@@ -236,6 +236,11 @@ namespace elf {
         ProgramIterable programs(MappedFileVisitor &visitor) { return ProgramIterable{*this, visitor}; }
 
         SectionIterable sections(MappedFileVisitor &visitor) { return SectionIterable{*this, visitor}; }
+
+        StringTableHeader<USizeT> *get_section_string_table_header(MappedFileVisitor &visitor) {
+            return SectionHeader<USizeT>::template cast<StringTableHeader<USizeT>>(
+                    &sections(visitor)[string_table_index], visitor);
+        }
     };
 
     using ELF32Header = ELFHeader<u32>;

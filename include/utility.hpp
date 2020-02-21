@@ -31,7 +31,7 @@ namespace elf {
 
 #define elf_unused __attribute__((unused))
 
-#include "recursive.def"
+#include "recursive_def.hpp"
 
 #define elf_enum_display(Name, base_type, num, ...) \
     enum Name : base_type { \
@@ -142,8 +142,7 @@ namespace elf {
         void *inner;
 
     public:
-        explicit ArrayIterator(T *inner, usize size)
-                : size{size}, inner{inner} {}
+        explicit ArrayIterator(T *inner, usize size) : size{size}, inner{inner} {}
 
         bool operator!=(const ArrayIterator &other) const { return inner != other.inner; }
 
