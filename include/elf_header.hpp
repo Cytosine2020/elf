@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "utility.hpp"
+#include "elf_utility.hpp"
 #include "section_header.hpp"
 #include "program_header.hpp"
 
@@ -240,6 +240,28 @@ namespace elf {
         StringTableHeader<USizeT> *get_section_string_table_header(MappedFileVisitor &visitor) {
             return SectionHeader<USizeT>::template cast<StringTableHeader<USizeT>>(
                     &sections(visitor)[string_table_index], visitor);
+        }
+
+        /// if the section string table is invalid, this function will abort
+        StringTableHeader<USizeT> *get_string_table_header(MappedFileVisitor &visitor) {
+            auto *section_string_table_header = get_section_string_table_header(visitor);
+            if (section_string_table_header == nullptr) neutron_abort("ELF file broken!");
+            auto section_string_table = section_string_table_header->get_string_table(visitor);
+
+            elf::ELF32StringTableHeader *string_table_header = nullptr;
+
+            for (auto &section: sections(visitor)) {
+                const char *name = section_string_table.get_str(section.name);
+
+                if (strcmp(name, ".strtab") == 0) {
+                    if (string_table_header != nullptr) return nullptr;
+                    string_table_header = SectionHeader<USizeT>::template cast<StringTableHeader<USizeT>>(&section,
+                                                                                                          visitor);
+                    if (string_table_header == nullptr) return nullptr;
+                }
+            }
+
+            return string_table_header;
         }
     };
 

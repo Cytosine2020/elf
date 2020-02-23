@@ -73,34 +73,32 @@ namespace elf {
     };
 
     template<typename T, usize end, usize begin, isize offset = 0, bool flag = (begin > offset)>
-    struct _get_slice;
+    struct _get_bits;
 
     template<typename T, usize end, usize begin, isize offset>
-    struct _get_slice<T, end, begin, offset, true> {
+    struct _get_bits<T, end, begin, offset, true> {
     public:
         static constexpr T inner(T val) {
-            static_assert(sizeof(T) * 8 >= end, "end exceed length");
-            static_assert(end > begin, "end need to be bigger than start");
-            static_assert(sizeof(T) * 8 >= end - begin + offset, "result exceed length");
-
             return (val >> (begin - offset)) & bits_mask<T, end - begin, 0>::val << offset;
         }
     };
 
     template<typename T, usize end, usize begin, isize offset>
-    struct _get_slice<T, end, begin, offset, false> {
+    struct _get_bits<T, end, begin, offset, false> {
     public:
         static constexpr T inner(T val) {
-            static_assert(sizeof(T) * 8 >= end, "end exceed length");
-            static_assert(end > begin, "end need to be bigger than start");
-            static_assert(sizeof(T) * 8 >= end - begin + offset, "result exceed length");
-
             return (val << (offset - begin)) & bits_mask<T, end - begin, 0>::val << offset;
         }
     };
 
     template<typename T, usize end, usize begin, isize offset = 0>
-    constexpr inline T get_slice(T val) { return _get_bits<T, end, begin, offset>::inner(val); }
+    constexpr inline T get_bits(T val) {
+        static_assert(sizeof(T) * 8 >= end, "end exceed length");
+        static_assert(end > begin, "end need to be bigger than start");
+        static_assert(sizeof(T) * 8 >= end - begin + offset, "result exceed length");
+
+        return _get_bits<T, end, begin, offset>::inner(val);
+    }
 
     class MappedFileVisitor {
     private:

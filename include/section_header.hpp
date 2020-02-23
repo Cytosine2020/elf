@@ -105,8 +105,9 @@ namespace elf {
             StringTable(StringTableHeader &header, MappedFileVisitor &visitor) :
                     header{header}, visitor{visitor} {}
 
-            char *get_str(usize index) const {
+            const char *get_str(usize index, const char *no_name = "") const {
                 if (index >= header.size) return nullptr;
+                if (index == 0) return no_name;
                 char *str = reinterpret_cast<char *>(visitor.trusted_address(header.offset + index));
                 if (strnlen(str, header.size - index) == (header.size - index)) return nullptr;
                 return str;
