@@ -2,6 +2,9 @@
 #define ELF_UTILITY_HPP
 
 
+#include <iostream>
+#include <cstddef>
+#include <type_traits>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
@@ -120,11 +123,11 @@ namespace elf {
             return inner != MAP_FAILED;
         }
 
-        bool check_address(u32 offset, usize len) const { return len <= size && offset <= size - len; }
+        bool check_address(usize offset, usize len) const { return len <= size && offset <= size - len; }
 
-        void *trusted_address(u32 offset) const { return static_cast<u8 *>(inner) + offset; }
+        void *trusted_address(usize offset) const { return static_cast<u8 *>(inner) + offset; }
 
-        void *address(u32 offset, usize len) const {
+        void *address(usize offset, usize len) const {
             return check_address(offset, len) ? trusted_address(offset) : nullptr;
         }
 

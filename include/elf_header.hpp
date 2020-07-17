@@ -3,6 +3,7 @@
 
 
 #include <iostream>
+#include <cstring>
 
 #include "elf_utility.hpp"
 #include "section_header.hpp"
