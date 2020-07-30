@@ -11,12 +11,12 @@ namespace elf {
                          PROGRAM_BITS, 1,               /// information defined by the program
                          SYMBOL_TABLE, 2,               /// a linker symbol table
                          STRING_TABLE, 3,               /// a string table
-                         RELOCATION_ENTRIES_ADDEND, 4,  /// “Rela” type relocation entries
+                         RELOCATION_ADDEND_TABLE, 4,    /// “Rela” type relocation entries
                          HASH_TABLE, 5,                 /// a symbol hash table
                          DYNAMIC_LINKING_TABLE, 6,      /// dynamic linking tables
                          NOTE, 7,                       /// note information
                          NO_BITS, 8,                    /// uninitialized space; does not occupy any space in the file
-                         RELOCATION_ENTRIES, 9,         /// “Rel” type relocation entries
+                         RELOCATION_TABLE, 9,           /// “Rel” type relocation entries
                          SHARED_LIBRARY, 10,            /// reserved
                          DYNAMIC_SYMBOL_TABLE, 11,      /// a dynamic loader symbol table
                          INITIALIZE_ARRAY, 14,          /// an array of pointers to initialization functions
@@ -72,7 +72,7 @@ namespace elf {
         bool is_executable() const { return (flags & EXECUTABLE) > 0; }
 
         friend std::ostream &operator<<(std::ostream &stream, const SectionHeader &self) {
-            stream << "ELF32SectionHeader {\n";
+            stream << "ELF" << sizeof(USizeT) * 8 << "SectionHeader {\n";
             stream << "\tname: " << self.name << ",\n";
             stream << "\tsection_type: " << self.section_type << ",\n";
             stream << "\tflags: " << (self.is_write() ? "W" : "") << (self.is_allocate() ? "A" : "")
@@ -90,8 +90,33 @@ namespace elf {
         }
     };
 
-    using ELF32SectionHeader = SectionHeader<u32>;
-    using ELF64SectionHeader = SectionHeader<u64>;
+    template<typename USizeT, typename EntryT>
+    class SectionIterable {
+    private:
+        SectionHeader<USizeT> &section;
+        MappedFileVisitor &visitor;
+
+    public:
+        SectionIterable(SectionHeader<USizeT> &section, MappedFileVisitor &visitor) :
+                section{section}, visitor{visitor} {}
+
+        using Iter = ArrayIterator<EntryT>;
+
+        Iter begin() const {
+            void *ptr = visitor.trusted_address(section.offset);
+            return Iter{reinterpret_cast<EntryT *>(ptr), section.entry_size};
+        }
+
+        Iter end() const {
+            void *ptr = visitor.trusted_address(section.offset + section.size);
+            return Iter{reinterpret_cast<EntryT *>(ptr), section.entry_size};
+        }
+
+        EntryT &operator[](usize index) const {
+            if (index * section.entry_size >= section.size) elf_abort("index out of boundary!");
+            return begin()[index];
+        }
+    };
 
     template<typename USizeT>
     class StringTableHeader : public SectionHeader<USizeT> {
@@ -117,11 +142,10 @@ namespace elf {
         static constexpr u32 TYPE = SectionHeader<USizeT>::STRING_TABLE;
         static constexpr usize ENTRY_SIZE = 0;
 
-        StringTable get_string_table(MappedFileVisitor &visitor) { return StringTable{*this, visitor}; }
-    };
+        using TableT = StringTable;
 
-    using ELF32StringTableHeader = StringTableHeader<u32>;
-    using ELF64StringTableHeader = StringTableHeader<u64>;
+        TableT get_table(MappedFileVisitor &visitor) { return TableT{*this, visitor}; }
+    };
 
     template<typename USizeT>
     class _SymbolTableEntry;
@@ -149,7 +173,7 @@ namespace elf {
     };
 
     template<typename USizeT>
-    class SymbolTableHeader : public SectionHeader<USizeT> {
+    class _SymbolTableHeader : public SectionHeader<USizeT> {
     public:
         elf_enum_display(SymbolBinding, u8, 3,
                          LOCAL, 0,
@@ -202,46 +226,115 @@ namespace elf {
             SymbolVisibility get_visibility() const {
                 return static_cast<SymbolVisibility>(get_bits<u8, 2, 0>(this->other));
             }
-        };
 
-        class SymbolTable {
-        private:
-            SymbolTableHeader &header;
-            MappedFileVisitor &visitor;
+            friend std::ostream &operator<<(std::ostream &stream, const SymbolTableEntry &self) {
+                stream << "ELF" << sizeof(USizeT) * 8 << "SymbolTableEntry {\n";
+                stream << "\tname: " << self.name << ",\n";
+                stream << "\tbind: " << self.get_bind() << ",\n";
+                stream << "\ttype: " << self.get_type() << ",\n";
+                stream << "\tvisibility: " << self.get_visibility() << ",\n";
+                stream << "\tsection_header_index: " << self.section_header_index << ",\n";
+                stream << "\tvalue: " << self.value << ",\n";
+                stream << "\tsize: " << self.size << ",\n";
+                stream << '}';
 
-        public:
-            SymbolTable(SymbolTableHeader &header, MappedFileVisitor &visitor) :
-                    header{header}, visitor{visitor} {}
-
-            ArrayIterator<SymbolTableEntry> begin() const {
-                SymbolTableEntry *ptr = reinterpret_cast<SymbolTableEntry *>(visitor.trusted_address(header.offset));
-                return ArrayIterator<SymbolTableEntry>{ptr, header.entry_size};
-            }
-
-            ArrayIterator<SymbolTableEntry> end() const {
-                SymbolTableEntry *ptr = reinterpret_cast<SymbolTableEntry *>(visitor.trusted_address(
-                        header.offset + header.size));
-                return ArrayIterator<SymbolTableEntry>{ptr, header.entry_size};
+                return stream;
             }
         };
 
-        static constexpr u32 TYPE = SectionHeader<USizeT>::SYMBOL_TABLE;
         static constexpr usize ENTRY_SIZE = sizeof(SymbolTableEntry);
 
-        SymbolTable get_symbol_table(MappedFileVisitor &visitor) { return SymbolTable{*this, visitor}; }
+        using TableT = SectionIterable<USizeT, SymbolTableEntry>;
+
+        TableT get_table(MappedFileVisitor &visitor) { return TableT{*this, visitor}; }
     };
 
-    using ELF32SymbolTableHeader = SymbolTableHeader<u32>;
-    using ELF64SymbolTableHeader = SymbolTableHeader<u64>;
-
-    template <typename USizeT>
-    class RelocationTableHeader : public SectionHeader<USizeT> {
+    template<typename USizeT>
+    class SymbolTableHeader : public _SymbolTableHeader<USizeT> {
     public:
-        
+        static constexpr u32 TYPE = SectionHeader<USizeT>::SYMBOL_TABLE;
     };
 
-    using ELF32RelocationTableHeader = RelocationTableHeader<u32>;
-    using ELF64RelocationTableHeader = RelocationTableHeader<u64>;
+    template<typename USizeT>
+    class DynSymbolTableHeader : public _SymbolTableHeader<USizeT> {
+    public:
+        static constexpr u32 TYPE = SectionHeader<USizeT>::DYNAMIC_SYMBOL_TABLE;
+    };
+
+    template<typename USizeT, typename EntryT>
+    class _RelocationTableHeader : public SectionHeader<USizeT> {
+    public:
+        static constexpr usize ENTRY_SIZE = sizeof(EntryT);
+
+        using TableT = SectionIterable<USizeT, EntryT>;
+
+        TableT get_table(MappedFileVisitor &visitor) { return TableT{*this, visitor}; }
+    };
+
+    template<typename USizeT>
+    struct RelocationEntry {
+        /// offset: indicates the location at which the relocation should be applied. For a
+        /// relocatable file, this is the offset, in bytes, from the beginning of the section to
+        /// the beginning of the storage unit being relocated. For an executable or shared object,
+        /// this is the virtual address of the storage unit being relocated.
+        USizeT offset;
+        /// info: contains both a symbol table index and a relocation type. The symbol table index
+        /// identifies the symbol whose value should be used in the relocation. Relocation types
+        /// are processor specific. The symbol table index is obtained by applying the ELF64_R_SYM
+        /// macro to this field, and the relocation type is obtained by applying the ELF64_R_TYPE
+        /// macro to this field. The ELF64_R_INFO macro combines a symbol table index and a
+        /// relocation type to produce a value for this field. These macros are defined as follows:
+        USizeT info;
+
+        usize get_symbol();
+
+        usize get_type();
+    };
+
+    template<> usize RelocationEntry<u32>::get_symbol() { return info >> 8u; }
+
+    template<> usize RelocationEntry<u32>::get_type() { return info & 0xffu; }
+
+    template<> usize RelocationEntry<u64>::get_symbol() { return info >> 32u; }
+
+    template<> usize RelocationEntry<u64>::get_type() { return info & 0xfffffffflu; }
+
+    template<typename USizeT>
+    struct RelocationAddendEntry : public RelocationEntry<USizeT> {
+        /// specifies a constant addend used to compute the value to be stored in the relocated
+        /// field.
+        USizeT addend;
+    };
+
+    template<typename USizeT>
+    class RelocationTableHeader : public _RelocationTableHeader<USizeT, RelocationEntry<USizeT>> {
+    public:
+        static constexpr u32 TYPE = SectionHeader<USizeT>::RELOCATION_TABLE;
+    };
+
+    template<typename USizeT>
+    class RelocationTableAddendHeader : public _RelocationTableHeader<USizeT, RelocationAddendEntry<USizeT>> {
+    public:
+        static constexpr u32 TYPE = SectionHeader<USizeT>::RELOCATION_ADDEND_TABLE;
+    };
+}
+
+namespace elf32 {
+    using SectionHeader = elf::SectionHeader<elf::u32>;
+    using StringTableHeader = elf::StringTableHeader<elf::u32>;
+    using SymbolTableHeader = elf::SymbolTableHeader<elf::u32>;
+    using DynSymbolTableHeader = elf::DynSymbolTableHeader<elf::u32>;
+    using RelocationTableHeader = elf::RelocationTableHeader<elf::u32>;
+    using RelocationTableAddendHeader = elf::RelocationTableAddendHeader<elf::u32>;
+}
+
+namespace elf64 {
+    using SectionHeader = elf::SectionHeader<elf::u64>;
+    using StringTableHeader = elf::StringTableHeader<elf::u64>;
+    using SymbolTableHeader = elf::SymbolTableHeader<elf::u64>;
+    using DynSymbolTableHeader = elf::DynSymbolTableHeader<elf::u64>;
+    using RelocationTableHeader = elf::RelocationTableHeader<elf::u64>;
+    using RelocationTableAddendHeader = elf::RelocationTableAddendHeader<elf::u64>;
 }
 
 

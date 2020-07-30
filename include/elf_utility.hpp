@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cstddef>
 #include <type_traits>
+#include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
@@ -109,10 +110,56 @@ namespace elf {
         void *inner;
         usize size;
 
+        void clear() {
+            fd = -1;
+            inner = nullptr;
+            size = 0;
+        }
+
+        void release() {
+            munmap(inner, size);
+            close(fd);
+            clear();
+        }
+
     public:
-        explicit MappedFileVisitor() : fd{-1}, inner{nullptr}, size{0} {}
+        static MappedFileVisitor open_elf(const char *name) {
+#if defined(__linux__)
+            int fd = open(name, O_RDONLY | F_SHLCK);
+#elif defined(__APPLE__)
+            int fd = open(name, O_RDONLY | O_SHLOCK);
+#else
+#error "OS not supported"
+#endif
+            MappedFileVisitor elf_visitor{};
+            elf_visitor.load_file(fd);
+            return elf_visitor;
+        }
+
+        MappedFileVisitor() : fd{-1}, inner{nullptr}, size{0} {}
+
+        MappedFileVisitor(MappedFileVisitor &&other) noexcept:
+                fd{other.fd}, inner{other.inner}, size{other.size} { other.clear(); }
+
+        MappedFileVisitor &operator=(MappedFileVisitor &&other) noexcept {
+            if (this != &other) {
+                release();
+
+                this->fd = other.fd;
+                this->inner = other.inner;
+                this->size = other.size;
+
+                other.clear();
+            }
+
+            return *this;
+        }
 
         bool load_file(int _fd) {
+            release();
+
+            if (_fd == -1) return false;
+
             fd = _fd;
 
             struct stat file_stat{};
@@ -131,9 +178,9 @@ namespace elf {
             return check_address(offset, len) ? trusted_address(offset) : nullptr;
         }
 
-        int get_fd() { return fd; }
+        int get_fd() const { return fd; }
 
-        ~MappedFileVisitor() { munmap(inner, size); }
+        ~MappedFileVisitor() { release(); }
     };
 
     template<typename T>
@@ -143,7 +190,7 @@ namespace elf {
         void *inner;
 
     public:
-        explicit ArrayIterator(T *inner, usize size) : size{size}, inner{inner} {}
+        ArrayIterator(T *inner, usize size) : size{size}, inner{inner} {}
 
         bool operator!=(const ArrayIterator &other) const { return inner != other.inner; }
 
@@ -167,6 +214,21 @@ namespace elf {
             return *reinterpret_cast<T *>(ptr);
         }
     };
+
+    u32 elf_hash(const char *name) {
+        u32 h = 0;
+
+        while (*name != '\0') {
+            h = (h << 4u) + *name++;
+            u32 g = h & 0xf0000000;
+            if (g != 0) {
+                h ^= g >> 24u;
+            }
+            h &= -g;
+        }
+
+        return h;
+    }
 }
 
 

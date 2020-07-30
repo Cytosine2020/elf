@@ -25,7 +25,7 @@ namespace elf {
         public:
             using Iter = ArrayIterator<ProgramHeaderT>;
 
-            explicit ProgramIterable(ELFHeader &header, MappedFileVisitor &visitor) :
+            ProgramIterable(ELFHeader &header, MappedFileVisitor &visitor) :
                     header{header}, visitor{visitor} {}
 
             Iter begin() const {
@@ -53,7 +53,7 @@ namespace elf {
         public:
             using Iter = ArrayIterator<SectionHeaderT>;
 
-            explicit SectionIterable(ELFHeader &header, MappedFileVisitor &visitor) :
+            SectionIterable(ELFHeader &header, MappedFileVisitor &visitor) :
                     header{header}, visitor{visitor} {}
 
             Iter begin() const {
@@ -127,7 +127,7 @@ namespace elf {
 
             if (header->elf_header_size < sizeof(ELFHeader)) return nullptr;
 
-            // check program header size and location in filex
+            // check program header size and location in file
             if (header->program_header_size < sizeof(ProgramHeaderT)) return nullptr;
             if (!visitor.check_address(header->program_header_offset,
                                        header->program_header_num * header->program_header_size))
@@ -209,7 +209,7 @@ namespace elf {
         ELFHeader &operator=(const ELFHeader &other) = delete;
 
         friend std::ostream &operator<<(std::ostream &stream, const ELFHeader &self) {
-            stream << "class ELF32Header {\n";
+            stream << "class ELF" << sizeof(USizeT) * 8 << "Header {\n";
             stream << "\tmagic_number: " << self.magic_number << ",\n";
             stream << "\telf_class: " << self.elf_class << ",\n";
             stream << "\tdata_encoding: " << self.data_encoding << ",\n";
@@ -243,31 +243,47 @@ namespace elf {
                     &sections(visitor)[string_table_index], visitor);
         }
 
-        /// if the section string table is invalid, this function will abort
-        StringTableHeader<USizeT> *get_string_table_header(MappedFileVisitor &visitor) {
-            auto *section_string_table_header = get_section_string_table_header(visitor);
-            if (section_string_table_header == nullptr) neutron_abort("ELF file broken!");
-            auto section_string_table = section_string_table_header->get_string_table(visitor);
+        typename StringTableHeader<USizeT>::TableT get_section_string_table(MappedFileVisitor &visitor) {
+            auto *section_header_string_table_header = get_section_string_table_header(visitor);
+            if (section_header_string_table_header == nullptr) neutron_unreachable("Unexpected nullptr!");
+            return section_header_string_table_header->get_table(visitor);
+        }
 
-            elf::ELF32StringTableHeader *string_table_header = nullptr;
+        /// if the section string table is invalid, this function will abort
+        template<typename SectionT>
+        SectionT *get_section_header(const char *section_name, MappedFileVisitor &visitor) {
+            auto section_string_table = get_section_string_table(visitor);
+
+            SectionT *section_header = nullptr;
 
             for (auto &section: sections(visitor)) {
                 const char *name = section_string_table.get_str(section.name);
 
-                if (strcmp(name, ".strtab") == 0) {
-                    if (string_table_header != nullptr) return nullptr;
-                    string_table_header = SectionHeader<USizeT>::template cast<StringTableHeader<USizeT>>(&section,
-                                                                                                          visitor);
-                    if (string_table_header == nullptr) return nullptr;
+                if (strcmp(name, section_name) == 0) {
+                    if (section_header != nullptr) return nullptr;
+                    section_header = SectionHeader<USizeT>::template cast<SectionT>(&section, visitor);
+                    if (section_header == nullptr) return nullptr;
                 }
             }
 
-            return string_table_header;
+            return section_header;
+        }
+
+        template<typename SectionT>
+        typename SectionT::TableT get_section(const char *section_name, MappedFileVisitor &visitor) {
+            auto *section_header = get_section_header<SectionT>(section_name, visitor);
+            if (section_header == nullptr) neutron_unreachable("Section not found!");
+            return section_header->get_table(visitor);
         }
     };
+}
 
-    using ELF32Header = ELFHeader<u32>;
-    using ELF64Header = ELFHeader<u64>;
+namespace elf32 {
+    using ELFHeader = elf::ELFHeader<elf::u32>;
+}
+
+namespace elf64 {
+    using ELFHeader = elf::ELFHeader<elf::u64>;
 }
 
 

@@ -35,14 +35,15 @@ namespace elf {
     template<typename USizeT>
     class ProgramHeader : public _ProgramHeader<USizeT> {
     public:
-        elf_enum_display(ProgramHeaderType, u32, 7,
+        elf_enum_display(ProgramHeaderType, u32, 8,
                          PROGRAM_NULL, 0,
                          LOADABLE, 1,
                          DYNAMIC_LINK_TABLE, 2,
                          INTERPRETER_PATH_NAME, 3,
                          NOTE, 4,
                          SHARED_LIBRARY, 5,
-                         PROGRAM_HEADER_TABLE, 6
+                         PROGRAM_HEADER_TABLE, 6,
+                         THREAD_LOCAL_STORAGE, 7
         );
 
         template<typename T>
@@ -77,7 +78,7 @@ namespace elf {
         /// flags: This member gives flags relevant to the segment. Defined flag values appear below.
         ///
         /// alignment: Loadable process segments must have congruent values for `virtual_address` and
-        /// `physical_address`, modulo the page size.This member gives the value to which the
+        /// `physical_address`, modulo the page size. This member gives the value to which the
         /// segments are aligned in memory and in the file. Values 0 and 1 mean that no alignment
         /// is required. Otherwise, `alignment` should be a positive, integral power of 2, and
         /// `address` should equal `offset`, modulo `alignment`.
@@ -91,7 +92,7 @@ namespace elf {
         bool is_read() const { return (this->flags & READ) > 0; }
 
         friend std::ostream &operator<<(std::ostream &stream, const ProgramHeader &self) {
-            stream << "ELF32ProgramHeader {\n";
+            stream << "ELF" << sizeof(USizeT) * 8 << "ProgramHeader {\n";
             stream << "\ttype: " << self.get_type() << ",\n";
             stream << "\toffset: " << self.offset << ",\n";
             stream << "\tvirtual_address: " << self.virtual_address << ",\n";
@@ -106,17 +107,35 @@ namespace elf {
         }
     };
 
-    using ELF32ProgramHeader = ProgramHeader<u32>;
-    using ELF64ProgramHeader = ProgramHeader<u64>;
-
     template<typename USizeT>
     class ExecutableHeader : public ProgramHeader<USizeT> {
     public:
         static constexpr u32 TYPE = ProgramHeader<USizeT>::LOADABLE;
     };
 
-    using ELF32ExecutableHeader = ExecutableHeader<u32>;
-    using ELF64ExecutableHeader = ExecutableHeader<u64>;
+    template<typename USizeT>
+    class InterPathHeader : public ExecutableHeader<USizeT> {
+    public:
+        static constexpr u32 TYPE = ProgramHeader<USizeT>::INTERPRETER_PATH_NAME;
+
+        const char *get_path_name(MappedFileVisitor &visitor) {
+            auto *str = reinterpret_cast<const char *>(visitor.address(this->offset, this->file_size));
+            if (strnlen(str, this->file_size) == this->file_size) return nullptr;
+            return str;
+        }
+    };
+}
+
+namespace elf32 {
+    using ProgramHeader = elf::ProgramHeader<elf::u32>;
+    using ExecutableHeader = elf::ExecutableHeader<elf::u32>;
+    using InterPathHeader = elf::InterPathHeader<elf::u32>;
+}
+
+namespace elf64 {
+    using ProgramHeader = elf::ProgramHeader<elf::u64>;
+    using ExecutableHeader = elf::ExecutableHeader<elf::u64>;
+    using InterPathHeader = elf::InterPathHeader<elf::u64>;
 }
 
 
