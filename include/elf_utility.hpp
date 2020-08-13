@@ -11,13 +11,22 @@
 
 
 namespace elf {
-    void _warn(const char *file, int line, const char *msg) {
+#define elf_static_inline static inline __attribute__((always_inline))
+#define elf_unused __attribute__((unused))
+#define elf_no_return __attribute__((noreturn))
+#if defined(__DEBUG__)
+#define neutron_inline
+#else
+#define neutron_inline inline __attribute__((__always_inline__))
+#endif
+
+    elf_static_inline void _warn(const char *file, int line, const char *msg) {
         std::cerr << "Warn at file " << file << ", line " << line << ": " << msg << std::endl;
     }
 
 #define elf_warn(msg) elf::_warn(__FILE__, __LINE__, msg)
 
-    __attribute__((noreturn)) void _abort(const char *file, int line, const char *msg) {
+    elf_static_inline elf_no_return void _abort(const char *file, int line, const char *msg) {
         std::cerr << "Abort at file " << file << ", line " << line << ": " << msg << std::endl;
 
         abort();
@@ -25,15 +34,13 @@ namespace elf {
 
 #define elf_abort(msg) elf::_abort(__FILE__, __LINE__, msg)
 
-    __attribute__((noreturn)) void _unreachable(const char *file, int line, const char *msg) {
+    elf_static_inline elf_no_return void _unreachable(const char *file, int line, const char *msg) {
         std::cerr << "Unreachable at file " << file << ", line " << line << ": " << msg << std::endl;
 
         abort();
     }
 
 #define elf_unreachable(msg) elf::_unreachable(__FILE__, __LINE__, msg)
-
-#define elf_unused __attribute__((unused))
 
 #include "recursive_def.hpp"
 

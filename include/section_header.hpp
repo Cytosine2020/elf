@@ -184,7 +184,7 @@ namespace elf {
         elf_enum_display(SymbolType, u8, 5,
                          NO_TYPE, 0,
                          OBJECT, 1,
-                         FUNC, 2,
+                         FUNCTION, 2,
                          SECTION, 3,
                          FILE, 4
         );
@@ -203,10 +203,8 @@ namespace elf {
             ///
             /// info: contains the symbol type and its binding attributes (that is, its scope). The binding attributes
             ///     are contained in the high-order four bits of the eight-bit byte, and the symbol type is contained
-            ///     in the low-order four bits. The processor-independent binding attributes are listed in Table 14,
-            ///     and the processor-independent values for symbol type are listed in Table 15. An STT_FILE symbol
-            ///     must have STB_LOCAL binding, its section index must be SHN_ABS, and it must precede all other local
-            ///     symbols for the file.
+            ///     in the low-order four bits. An STT_FILE symbol must have STB_LOCAL binding, its section index
+            ///     must be SHN_ABS, and it must precede all other local symbols for the file.
             ///
             /// other: is reserved for future use; must be zero.
             ///
@@ -291,13 +289,17 @@ namespace elf {
         usize get_type();
     };
 
-    template<> usize RelocationEntry<u32>::get_symbol() { return info >> 8u; }
+    template<>
+    usize RelocationEntry<u32>::get_symbol() { return info >> 8u; }
 
-    template<> usize RelocationEntry<u32>::get_type() { return info & 0xffu; }
+    template<>
+    usize RelocationEntry<u32>::get_type() { return info & 0xffu; }
 
-    template<> usize RelocationEntry<u64>::get_symbol() { return info >> 32u; }
+    template<>
+    usize RelocationEntry<u64>::get_symbol() { return info >> 32u; }
 
-    template<> usize RelocationEntry<u64>::get_type() { return info & 0xfffffffflu; }
+    template<>
+    usize RelocationEntry<u64>::get_type() { return info & 0xfffffffflu; }
 
     template<typename USizeT>
     struct RelocationAddendEntry : public RelocationEntry<USizeT> {
@@ -317,6 +319,71 @@ namespace elf {
     public:
         static constexpr u32 TYPE = SectionHeader<USizeT>::RELOCATION_ADDEND_TABLE;
     };
+
+    template<typename USizeT>
+    class DynLinkingTableHeader : public SectionHeader<USizeT> {
+    public:
+        elf_enum_display(DynLinkingTag, USizeT, 35,
+                         DYNAMIC_LINK_NULL, 0,      /// Marks the end of the dynamic array
+                         NEEDED, 1,                 /// The string table offset of the name of a needed library.
+                         PLT_ENTRY_SIZE, 2,         /// Total size, in bytes, of the relocation entries associated
+                                                    /// with the procedure linkage table.
+                         PLTGOT, 3,                 /// Contains an address associated with the linkage table. The
+                                                    /// specific meaning of this field is processor-dependent.
+                         HASH, 4,                   /// Address of the symbol hash table, described below.
+                         STRING_TABLE, 5,           /// Address of the dynamic string table.
+                         SYMBOL_TABLE, 6,           /// Address of the dynamic symbol table.
+                         RELA, 7,                   /// Address of a relocation table.
+                         RELA_SIZE, 8,              /// Total size, in bytes, of the relocation relocation table.
+                         RELA_ENTRY_SIZE, 9,        /// Size, in bytes, of each relocation relocation entry.
+                         STRING_TABLE_SIZE, 10,     /// Total size, in bytes, of the string table.
+                         SYMBOL_ENTRY_SIZE, 11,     /// Size, in bytes, of each symbol table entry.
+                         INITIALIZE_FUNCTION, 12,   /// Address of the initialization function.
+                         TERMINATION_FUNCTION, 13,  /// Address of the termination function.
+                         SONAME, 14,                /// The string table offset of the name of this shared object.
+                         RPATH, 15,                 /// The string table offset of a shared library search path string.
+                         SYMBOLIC, 16,              /// The presence of this dynamic table entry modifies the symbol
+                                                    /// resolution algorithm for references within the library. Symbols
+                                                    /// defined within the library are used to resolve references
+                                                    /// before the dynamic linker searches the usual search path.
+                         REL_TABLE, 17,             /// Address of a relocation table.
+                         REL_SIZE, 18,              /// Total size, in bytes, of the relocation table.
+                         REL_ENTRY_SIZE, 19,        /// Size, in bytes, of each relocation entry.
+                         PLT_REL, 20,               /// Type of relocation entry used for the procedure linkage table.
+                                                    /// The d_val member contains either DT_REL or DT_RELA.
+                         DEBUG, 21,                 /// Reserved for debugger use.
+                         TEXT_REL, 22,              /// The presence of this dynamic table entry signals that the
+                                                    /// relocation table contains relocations for a non-writable
+                                                    /// segment.
+                         JUMP_REL, 23,              /// Address of the relocations associated with the procedure
+                                                    /// linkage table.
+                         BIND_NOW, 24,              /// The presence of this dynamic table entry signals that the
+                                                    /// dynamic loader should process all relocations for this object
+                                                    /// before transferring control to the program.
+                         INITIALIZE_ARRAY, 25,      /// Pointer to an array of pointers to initialization functions.
+                         TERMINATION_ARRAY, 26,     /// Pointer to an array of pointers to termination functions.
+                         INITIALIZE_SIZE, 27,       /// Size, in bytes, of the array of initialization functions.
+                         TERMINATION_SIZE, 28,      /// Size, in bytes, of the array of termination functions.
+                         PRE_INITIALIZE_ARRAY, 32,
+                         PRE_INITIALIZE_SIZE, 33,
+                         GNU_HASH, 0x6ffffef5,
+                         VER_SYM, 0x6ffffff0,
+                         VER_NEED, 0x6ffffffe,
+                         VER_NEEDNUM, 0x6fffffff
+        );
+
+        struct Entry {
+            DynLinkingTag tag;
+            USizeT val;
+        };
+
+        static constexpr usize ENTRY_SIZE = sizeof(Entry);
+        static constexpr u32 TYPE = SectionHeader<USizeT>::DYNAMIC_LINKING_TABLE;
+
+        using TableT = SectionIterable<USizeT, Entry>;
+
+        TableT get_table(MappedFileVisitor &visitor) { return TableT{*this, visitor}; }
+    };
 }
 
 namespace elf32 {
@@ -326,6 +393,7 @@ namespace elf32 {
     using DynSymbolTableHeader = elf::DynSymbolTableHeader<elf::u32>;
     using RelocationTableHeader = elf::RelocationTableHeader<elf::u32>;
     using RelocationTableAddendHeader = elf::RelocationTableAddendHeader<elf::u32>;
+    using DynLinkingTableHeader = elf::DynLinkingTableHeader<elf::u32>;
 }
 
 namespace elf64 {
@@ -335,6 +403,7 @@ namespace elf64 {
     using DynSymbolTableHeader = elf::DynSymbolTableHeader<elf::u64>;
     using RelocationTableHeader = elf::RelocationTableHeader<elf::u64>;
     using RelocationTableAddendHeader = elf::RelocationTableAddendHeader<elf::u64>;
+    using DynLinkingTableHeader = elf::DynLinkingTableHeader<elf::u64>;
 }
 
 
