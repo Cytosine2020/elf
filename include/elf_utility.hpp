@@ -125,7 +125,7 @@ namespace elf {
 
         void release() {
             munmap(inner, size);
-            close(fd);
+            if (fd != -1) { close(fd); }
             clear();
         }
 
