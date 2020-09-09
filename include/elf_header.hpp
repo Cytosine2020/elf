@@ -245,7 +245,7 @@ namespace elf {
 
         typename StringTableHeader<USizeT>::TableT get_section_string_table(MappedFileVisitor &visitor) {
             auto *section_header_string_table_header = get_section_string_table_header(visitor);
-            if (section_header_string_table_header == nullptr) neutron_unreachable("Unexpected nullptr!");
+            if (section_header_string_table_header == nullptr) elf_unreachable("Unexpected nullptr!");
             return section_header_string_table_header->get_table(visitor);
         }
 
@@ -272,7 +272,7 @@ namespace elf {
         template<typename SectionT>
         typename SectionT::TableT get_section(const char *section_name, MappedFileVisitor &visitor) {
             auto *section_header = get_section_header<SectionT>(section_name, visitor);
-            if (section_header == nullptr) neutron_unreachable("Section not found!");
+            if (section_header == nullptr) elf_unreachable("Section not found!");
             return section_header->get_table(visitor);
         }
     };

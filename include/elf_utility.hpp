@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <type_traits>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
@@ -129,7 +130,35 @@ namespace elf {
             clear();
         }
 
+        bool load_file(int _fd) {
+            release();
+
+            fd = _fd;
+
+            struct stat file_stat{};
+            if (fstat(fd, &file_stat) != 0) {
+                elf_warn("fstat failed!");
+                return false;
+            }
+            size = file_stat.st_size;
+
+            inner = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+            if (inner == MAP_FAILED) {
+                elf_warn("mmap failed!");
+                return false;
+            } else {
+                return true;
+            }
+        }
+
     public:
+        static MappedFileVisitor open_elf(int fd) {
+            MappedFileVisitor elf_visitor{};
+            elf_visitor.load_file(fd);
+            return elf_visitor;
+        }
+
         static MappedFileVisitor open_elf(const char *name) {
 #if defined(__linux__)
             int fd = open(name, O_RDONLY | F_SHLCK);
@@ -138,9 +167,7 @@ namespace elf {
 #else
 #error "OS not supported"
 #endif
-            MappedFileVisitor elf_visitor{};
-            elf_visitor.load_file(fd);
-            return elf_visitor;
+            return open_elf(fd);
         }
 
         MappedFileVisitor() : fd{-1}, inner{nullptr}, size{0} {}
@@ -160,21 +187,6 @@ namespace elf {
             }
 
             return *this;
-        }
-
-        bool load_file(int _fd) {
-            release();
-
-            if (_fd == -1) return false;
-
-            fd = _fd;
-
-            struct stat file_stat{};
-            if (fstat(fd, &file_stat) != 0) return false;
-            size = file_stat.st_size;
-
-            inner = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
-            return inner != MAP_FAILED;
         }
 
         bool check_address(usize offset, usize len) const { return len <= size && offset <= size - len; }
@@ -222,7 +234,7 @@ namespace elf {
         }
     };
 
-    u32 elf_hash(const char *name) {
+    elf_static_inline u32 elf_hash(const char *name) {
         u32 h = 0;
 
         while (*name != '\0') {

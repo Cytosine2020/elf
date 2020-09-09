@@ -2,6 +2,9 @@
 #define ELF_SECTION_HEADER_HPP
 
 
+#include "elf_utility.hpp"
+
+
 namespace elf {
     template<typename USizeT>
     class SectionHeader {
@@ -290,16 +293,16 @@ namespace elf {
     };
 
     template<>
-    usize RelocationEntry<u32>::get_symbol() { return info >> 8u; }
+    inline usize RelocationEntry<u32>::get_symbol() { return info >> 8u; }
 
     template<>
-    usize RelocationEntry<u32>::get_type() { return info & 0xffu; }
+    inline usize RelocationEntry<u32>::get_type() { return info & 0xffu; }
 
     template<>
-    usize RelocationEntry<u64>::get_symbol() { return info >> 32u; }
+    inline usize RelocationEntry<u64>::get_symbol() { return info >> 32u; }
 
     template<>
-    usize RelocationEntry<u64>::get_type() { return info & 0xfffffffflu; }
+    inline usize RelocationEntry<u64>::get_type() { return info & 0xfffffffflu; }
 
     template<typename USizeT>
     struct RelocationAddendEntry : public RelocationEntry<USizeT> {
